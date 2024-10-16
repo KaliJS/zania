@@ -4,8 +4,14 @@ import cardData from "./data.json";
 export const handlers = [
   // Mock GET /api/cards
   http.get("/api/cards", () => {
-    const data = JSON.parse(localStorage.getItem("cards") || "[]");
-    return HttpResponse.json(data || cardData);
+    const cards = localStorage.getItem("cards");
+    let data = [];
+    if (cards && cards.length > 0) {
+      data = JSON.parse(cards);
+    } else {
+      data = cardData;
+    }
+    return HttpResponse.json(data);
   }),
 
   // Mock POST /api/cards

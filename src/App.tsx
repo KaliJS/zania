@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { ICardData } from "./types";
+import Overlay from "./components/overlay";
+import Card from "./components/card";
 
-// import { worker } from "./mocks/browser";
-
-// worker.listen();
-
-const App: React.FC = () => {
+const App = () => {
   const [cards, setCards] = useState<ICardData[]>([]);
   const [isImageOpen, setIsImageOpen] = useState<string | null>(null);
   const [lastSaveTime, setLastSaveTime] = useState<number>(Date.now());
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [draggingCardIndex, setDraggingCardIndex] = useState<number | null>(null);
+  const [timeSinceLastSave, setTimeSinceLastSave] = useState<number>(0);
 
   // Fetch cards from the API
   useEffect(() => {
@@ -22,14 +21,16 @@ const App: React.FC = () => {
 
   // Save to localStorage every 5 seconds if changes are made
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (Date.now() - lastSaveTime >= 5000 && !isSaving) {
-        saveCards(cards);
+    // Clear any existing timers
+    const timer = setTimeout(() => {
+      if (!isSaving) {
+        saveCards(cards); // Save the cards only after 5 seconds of the last change
       }
-    }, 5000);
+    }, 5000); // Wait 5 seconds
 
-    return () => clearInterval(interval);
-  }, [cards, lastSaveTime]);
+    // Cleanup function to clear the timer when `cards` changes before the 5 seconds are up
+    return () => clearTimeout(timer);
+  }, [cards]);
 
   // Close the overlay on ESC key press
   useEffect(() => {
@@ -38,13 +39,20 @@ const App: React.FC = () => {
         setIsImageOpen(null);
       }
     };
-
     window.addEventListener("keydown", handleEsc);
-
     return () => {
       window.removeEventListener("keydown", handleEsc);
     };
   }, []);
+
+  // Timer to update the "last saved X seconds ago"
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeSinceLastSave(Math.floor((Date.now() - lastSaveTime) / 1000)); // Update every second
+    }, 1000);
+
+    return () => clearInterval(interval); // Cleanup when component unmounts
+  }, [lastSaveTime]); // Re-run only when `lastSaveTime` changes
 
   // Function to save cards via API
   const saveCards = (cards: ICardData[]) => {
@@ -93,30 +101,23 @@ const App: React.FC = () => {
     <>
       <div className="grid-container">
         {cards.map((card, index) => (
-          <div
+          <Card
             key={card.type}
-            className={`card ${draggingCardIndex === index ? "dragging" : ""}`}
-            draggable
-            onDragStart={() => handleDragStart(index)}
-            onDragOver={(e) => handleDragOver(e, index)}
-            onDragEnd={handleDragEnd}
-            style={{ transform: `translateY(${draggingCardIndex === index ? "5px" : "0"})` }}
-            onClick={() => {
+            card={card}
+            draggingCardIndex={draggingCardIndex}
+            index={index}
+            handleDragStart={() => handleDragStart(index)}
+            handleDragOver={(e) => handleDragOver(e, index)}
+            handleDragEnd={handleDragEnd}
+            handleClick={() => {
               setIsImageOpen(card.thumbnail);
             }}
-          >
-            <img src={card.thumbnail} alt={card.title} />
-            <h3>{card.title}</h3>
-          </div>
+          />
         ))}
       </div>
-      {isImageOpen && (
-        <div className="overlay" onClick={() => setIsImageOpen(null)}>
-          <img src={isImageOpen} alt="Selected" />
-        </div>
-      )}
+      {isImageOpen && <Overlay url={isImageOpen} handleClose={() => setIsImageOpen(null)} />}
 
-      <div className="save-status">{isSaving ? <span>Saving...</span> : <span>Last saved {Math.floor((Date.now() - lastSaveTime) / 1000)} seconds ago</span>}</div>
+      <div className="save-status">{isSaving ? <span>Saving...</span> : <span>Last saved {timeSinceLastSave} seconds ago</span>}</div>
     </>
   );
 };
